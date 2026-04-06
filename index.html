@@ -6,7 +6,7 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Retrolog</title>
+<title>Abaticatus</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -271,6 +271,66 @@ body {
 #export-btn:hover { background: var(--gold-light); color: var(--gold); border-color: var(--gold-border); }
 
 @media (max-width: 680px) { #money-panel { display: none; } }
+
+/* IDEAS SECTION */
+#ideas-section {
+  border-top: 2px solid var(--border);
+  margin-top: 4px;
+  padding: 12px 15px 16px;
+}
+#ideas-heading {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-hint); margin-bottom: 8px;
+}
+#idea-input-row { display: flex; gap: 7px; align-items: center; margin-bottom: 10px; }
+#idea-input {
+  flex: 1; font-family: var(--font-mono); font-size: 12px;
+  padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); color: var(--text);
+  outline: none; min-width: 0;
+}
+#idea-input::placeholder { color: var(--text-hint); }
+#idea-input:focus { border-color: var(--secret); box-shadow: 0 0 0 3px rgba(107,63,160,0.08); }
+.idea-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border-soft);
+  animation: rowIn 0.18s ease;
+}
+.idea-row:last-child { border-bottom: none; }
+.idea-status {
+  flex-shrink: 0; font-size: 13px; cursor: pointer;
+  padding: 1px 3px; border-radius: 3px; line-height: 1.4;
+  transition: transform 0.1s;
+  user-select: none;
+}
+.idea-status:hover { transform: scale(1.25); }
+.idea-text {
+  flex: 1; font-size: 12px; font-family: var(--font-serif);
+  color: var(--text); word-break: break-word; line-height: 1.5;
+  cursor: pointer; padding: 1px 0;
+}
+.idea-text.done { color: var(--text-hint); text-decoration: line-through; }
+.idea-text.inprogress { color: var(--secret); }
+.idea-del {
+  flex-shrink: 0; font-size: 12px; color: var(--text-hint);
+  cursor: pointer; padding: 1px 4px; border-radius: 3px;
+  border: none; background: none; line-height: 1.4; opacity: 0;
+  transition: opacity 0.1s;
+}
+.idea-row:hover .idea-del { opacity: 1; }
+.idea-del:hover { color: #b03020; }
+.idea-edit-row {
+  display: flex; gap: 6px; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid var(--secret-border);
+}
+.idea-edit-row input {
+  flex: 1; font-family: var(--font-mono); font-size: 12px;
+  padding: 4px 8px; border: 1px solid var(--secret-border);
+  border-radius: var(--radius); background: var(--surface);
+  color: var(--text); outline: none;
+}
+.idea-edit-row input:focus { border-color: var(--secret); }
+#ideas-empty { font-size: 11px; color: var(--text-hint); text-align: center; padding: 10px 0; line-height: 2; }
 </style>
 </head>
 <body>
@@ -349,6 +409,14 @@ body {
       </div>
       <div id="money-body"><div id="money-empty">no entries yet<br>log what you saved<br>or received</div></div>
     </div>
+
+    <div id="ideas-section">
+      <div id="ideas-heading">💡 money ideas</div>
+      <div id="idea-input-row">
+        <input type="text" id="idea-input" placeholder="add an idea · enter to save" autocomplete="off" />
+      </div>
+      <div id="ideas-body"><div id="ideas-empty">no ideas yet<br>what could bring in money?</div></div>
+    </div>
   </div>
 </div>
 
@@ -361,13 +429,13 @@ const SK = 'retrolog_v2';
 let S = {
   coins: 0, goal: 1800, reward: '',
   rates: { t:0.25, e:1.50, m:3.00, h:5.00, s:10.00 },
-  entries: [], money: [],
+  entries: [], money: [], ideas: [],
   startDate: new Date().toISOString().slice(0,10)
 };
 let mFilter = 'all', editTaskId = null, editMoneyId = null;
 
 function load() {
-  try { const r = localStorage.getItem(SK); if (r) S = Object.assign({}, S, JSON.parse(r)); if (!S.rates.s) S.rates.s=10; if (!S.money) S.money=[]; } catch(e) {}
+  try { const r = localStorage.getItem(SK); if (r) S = Object.assign({}, S, JSON.parse(r)); if (!S.rates.s) S.rates.s=10; if (!S.money) S.money=[]; if (!S.ideas) S.ideas=[]; } catch(e) {}
 }
 function save() { localStorage.setItem(SK, JSON.stringify(S)); }
 
@@ -658,7 +726,72 @@ function exportCSV() {
   a.download='retrolog_'+today()+'.csv';a.click();
 }
 
-load();renderBar();renderLedger();renderMoney();tIn.focus();
+// IDEAS
+const IDEA_STATUS = ['💡','🔄','✅'];
+let editIdeaId = null;
+
+function renderIdeas() {
+  const body = document.getElementById('ideas-body');
+  if (!S.ideas || !S.ideas.length) {
+    body.innerHTML = '<div id="ideas-empty">no ideas yet<br>what could bring in money?</div>';
+    return;
+  }
+  body.innerHTML = S.ideas.slice().reverse().map(idea => {
+    if (editIdeaId === idea.id) {
+      return `<div class="idea-edit-row">
+        <span class="idea-status" onclick="cycleIdeaStatus(${idea.id})">${IDEA_STATUS[idea.status||0]}</span>
+        <input type="text" id="ii-${idea.id}" value="${esc(idea.text)}"
+          onkeydown="ideaKey(event,${idea.id})"
+          onblur="saveIdeaEdit(${idea.id})" />
+        <button class="idea-del" onclick="delIdea(${idea.id})">✕</button>
+      </div>`;
+    }
+    const st = idea.status || 0;
+    const cls = st === 2 ? 'done' : st === 1 ? 'inprogress' : '';
+    return `<div class="idea-row">
+      <span class="idea-status" onclick="cycleIdeaStatus(${idea.id})" title="click to change status">${IDEA_STATUS[st]}</span>
+      <span class="idea-text ${cls}" onclick="startIdeaEdit(${idea.id})">${esc(idea.text)}</span>
+      <button class="idea-del" onclick="delIdea(${idea.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function cycleIdeaStatus(id) {
+  const idea = S.ideas.find(x=>x.id===id); if (!idea) return;
+  idea.status = ((idea.status||0) + 1) % 3;
+  save(); renderIdeas();
+}
+function startIdeaEdit(id) {
+  editIdeaId = id; renderIdeas();
+  setTimeout(()=>{ const el=document.getElementById('ii-'+id); if(el){el.focus();el.select();} },20);
+}
+function ideaKey(e, id) {
+  if (e.key==='Enter') { e.target.blur(); }
+  if (e.key==='Escape') { editIdeaId=null; renderIdeas(); }
+}
+function saveIdeaEdit(id) {
+  const idea = S.ideas.find(x=>x.id===id); if (!idea) return;
+  const el = document.getElementById('ii-'+id); if (!el) return;
+  const t = el.value.trim();
+  if (t) idea.text = t;
+  editIdeaId = null; save(); renderIdeas();
+}
+function delIdea(id) {
+  S.ideas = S.ideas.filter(x=>x.id!==id);
+  editIdeaId=null; save(); renderIdeas();
+}
+
+const ideaIn = document.getElementById('idea-input');
+ideaIn.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const raw = ideaIn.value.trim(); if (!raw) return;
+  if (!S.ideas) S.ideas = [];
+  S.ideas.push({ text: raw, status: 0, id: Date.now() });
+  save(); renderIdeas();
+  ideaIn.value = '';
+});
+
+load();renderBar();renderLedger();renderMoney();renderIdeas();tIn.focus();
 </script>
 </body>
 </html>
