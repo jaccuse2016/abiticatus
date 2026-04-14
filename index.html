@@ -505,10 +505,13 @@ const DL = { t:'trivial', e:'easy', m:'medium', h:'hard', s:'secret' };
 const DK = ['t','e','m','h','s'];
 
 function parseTask(raw) {
+  const isYesterday = /\byesterday\b/i.test(raw);
+  raw = raw.replace(/\byesterday\b/i,'').trim();
   const m = raw.match(/\b([temhs])\s*$/i);
-  if (!m) return { text: raw.trim(), diff: 'e' };
-  const d = m[1].toLowerCase();
-  return { text: raw.replace(/\s*\b[temhs]\s*$/i,'').trim(), diff: DK.includes(d)?d:'e' };
+  const d = m ? m[1].toLowerCase() : 'e';
+  const text = raw.replace(/\s*\b[temhs]\s*$/i,'').trim();
+  const date = isYesterday ? new Date(Date.now()-86400000).toISOString().slice(0,10) : today();
+  return { text, diff: DK.includes(d)?d:'e', date };
 }
 function parseMoney(raw) {
   const amMatch = raw.match(/\$?\s*(\d+\.?\d*)\s*$/);
